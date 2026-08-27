@@ -16,7 +16,7 @@ let lives = 3;
 let gameFinished = false;
 let lastTime = 0;
 
-const player = { x: 120, y: 350, width: 28, height: 40, speed: 5, velocityY: 0, onGround: false };
+const player = { x: 120, y: 350, width: 28, height: 40, speed: 5, velocityY: 0, onGround: false, jumpsAvailable: 2, maxJumps: 2 };
 const platforms = [
   { x: 0, y: 430, width: 850, height: 150 }, { x: 1000, y: 390, width: 550, height: 190 },
   { x: 1700, y: 430, width: 600, height: 150 }, { x: 2420, y: 350, width: 360, height: 230 },
@@ -41,7 +41,7 @@ function resizeCanvas() {
 }
 
 function resetGame() {
-  player.x = 120; player.y = 350; player.velocityY = 0; cameraX = 0;
+  player.x = 120; player.y = 350; player.velocityY = 0; player.jumpsAvailable = player.maxJumps; cameraX = 0;
   score = 0; lives = 3; gameFinished = false;
   coins.forEach(coin => coin.collected = false);
   enemies.forEach(enemy => { enemy.defeated = false; enemy.x = enemy.startX; });
@@ -55,7 +55,7 @@ function overlaps(first, second) { return first.x < second.x + second.width && f
 function loseLife() {
   lives -= 1;
   if (lives <= 0) finishGame(false);
-  else { player.x = Math.max(80, player.x - 220); player.y = 250; player.velocityY = 0; }
+  else { player.x = Math.max(80, player.x - 220); player.y = 250; player.velocityY = 0; player.jumpsAvailable = player.maxJumps; }
 }
 
 function finishGame(won) {
@@ -71,7 +71,7 @@ function update(delta) {
   const movingRight = keys.ArrowRight;
   if (movingLeft) player.x -= player.speed;
   if (movingRight) player.x += player.speed;
-  if (keys[' '] && player.onGround) { player.velocityY = -12; player.onGround = false; keys[' '] = false; }
+  if (keys[' '] && player.jumpsAvailable > 0) { player.velocityY = -12; player.jumpsAvailable--; keys[' '] = false; }
 
   player.velocityY += 0.55;
   player.y += player.velocityY;
@@ -79,7 +79,7 @@ function update(delta) {
   platforms.forEach(platform => {
     const landing = player.velocityY >= 0 && player.x + player.width > platform.x && player.x < platform.x + platform.width;
     if (landing && player.y + player.height >= platform.y && player.y + player.height - player.velocityY <= platform.y) {
-      player.y = platform.y - player.height; player.velocityY = 0; player.onGround = true;
+      player.y = platform.y - player.height; player.velocityY = 0; player.onGround = true; player.jumpsAvailable = player.maxJumps;
     }
   });
   player.x = Math.max(0, Math.min(worldWidth - player.width, player.x));
