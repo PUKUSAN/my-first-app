@@ -30,6 +30,7 @@ const coins = [[350, 375], [570, 270], [1210, 230], [1950, 285], [3120, 275], [3
   .map(([x, y]) => ({ x, y, collected: false }));
 const enemies = [[700, 400], [1300, 350], [2050, 400], [2700, 320], [3300, 400], [4050, 350], [4800, 400], [5400, 310]]
   .map(([x, y]) => ({ x, y, width: 30, height: 30, startX: x, direction: 1, defeated: false }));
+const explosions = [];
 
 function resizeCanvas() {
   const pixelRatio = Math.min(window.devicePixelRatio || 1, 2);
@@ -45,6 +46,7 @@ function resetGame() {
   score = 0; lives = 3; gameFinished = false;
   coins.forEach(coin => coin.collected = false);
   enemies.forEach(enemy => { enemy.defeated = false; enemy.x = enemy.startX; });
+  explosions.length = 0;
   resultElement.classList.remove('visible');
   updateScore();
 }
@@ -95,11 +97,30 @@ function update(delta) {
     enemy.x += enemy.direction * 1.1;
     if (Math.abs(enemy.x - enemy.startX) > 90) enemy.direction *= -1;
     if (overlaps(player, enemy)) {
-      if (player.velocityY > 2 && player.y + player.height < enemy.y + 16) { enemy.defeated = true; player.velocityY = -7; score += 250; updateScore(); }
-      else loseLife();
+      const playerCenterY = player.y + player.height / 2;
+      const enemyCenterY = enemy.y + enemy.height / 2;
+      const playerBottomY = player.y + player.height;
+      const enemyTopY = enemy.y;
+      const isStompingFromAbove = player.velocityY > 2 && playerBottomY < enemyTopY + 18 && playerCenterY < enemyCenterY;
+      if (isStompingFromAbove) {
+        enemy.defeated = true;
+        player.velocityY = -7;
+        score += 250;
+        updateScore();
+        explosions.push({ x: enemy.x + enemy.width / 2, y: enemy.y + enemy.height / 2, lifetime: 0.5, maxLifetime: 0.5 });
+      }
+      else if (Math.abs(playerCenterY - enemyCenterY) < 15 || player.velocityY <= 2) {
+        loseLife();
+      }
     }
   });
   if (player.x > 5480) finishGame(true);
+  
+  explosions.forEach((explosion, index) => {
+    explosion.lifetime -= delta;
+    if (explosion.lifetime <= 0) explosions.splice(index, 1);
+  });
+  
   cameraX += (Math.max(0, player.x - screenWidth * 0.35) - cameraX) * 0.1;
   cameraX = Math.max(0, Math.min(worldWidth - screenWidth, cameraX));
 }
@@ -119,6 +140,26 @@ function draw() {
   platforms.forEach(platform => { context.fillStyle = '#121931'; context.fillRect(platform.x, platform.y, platform.width, platform.height); context.fillStyle = '#f2d36b'; context.fillRect(platform.x, platform.y, platform.width, 5); });
   coins.forEach(coin => { if (!coin.collected) { context.fillStyle = '#f2d36b'; context.beginPath(); context.arc(coin.x, coin.y + Math.sin(Date.now() / 250 + coin.x) * 3, 8, 0, Math.PI * 2); context.fill(); } });
   enemies.forEach(enemy => { if (!enemy.defeated) { context.fillStyle = '#e56078'; context.fillRect(enemy.x, enemy.y, enemy.width, enemy.height); context.fillStyle = '#24243e'; context.fillRect(enemy.x + 6, enemy.y + 8, 5, 5); context.fillRect(enemy.x + 19, enemy.y + 8, 5, 5); } });
+  explosions.forEach(explosion => {
+    const progress = 1 - (explosion.lifetime / explosion.maxLifetime);
+    const particleCount = 8;
+    for (let i = 0; i < particleCount; i++) {
+      const angle = (Math.PI * 2 * i) / particleCount;
+      const distance = progress * 30;
+      const px = explosion.x + Math.cos(angle) * distance;
+      const py = explosion.y + Math.sin(angle) * distance;
+      const size = (1 - progress) * 5;
+      context.fillStyle = `rgba(255, 140, 0, ${1 - progress})`;
+      context.beginPath();
+      context.arc(px, py, size, 0, Math.PI * 2);
+      context.fill();
+    }
+    context.fillStyle = `rgba(255, 100, 100, ${1 - progress})`;
+    context.font = `bold ${20 + progress * 15}px Arial`;
+    context.textAlign = 'center';
+    context.textBaseline = 'middle';
+    context.fillText('あべし！', explosion.x, explosion.y - 15);
+  });
   context.fillStyle = '#f4f1e7'; context.fillRect(player.x, player.y, player.width, player.height); context.fillStyle = '#e56078'; context.fillRect(player.x + 4, player.y + 7, 20, 7); context.fillStyle = '#20223a'; context.fillRect(player.x + 5, player.y + 16, 6, 5); context.fillRect(player.x + 17, player.y + 16, 6, 5);
   context.fillStyle = '#f2d36b'; context.fillRect(5485, 270, 7, 160); context.fillStyle = '#fff1b0'; context.beginPath(); context.moveTo(5492, 270); context.lineTo(5560, 295); context.lineTo(5492, 320); context.fill();
   context.restore();
