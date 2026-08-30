@@ -16,7 +16,7 @@ let lives = 3;
 let gameFinished = false;
 let lastTime = 0;
 
-const player = { x: 120, y: 350, width: 28, height: 40, speed: 5, velocityY: 0, onGround: false, jumpsAvailable: 2, maxJumps: 2 };
+const player = { x: 120, y: 350, width: 28, height: 40, speed: 5, velocityY: 0, onGround: false, jumpsAvailable: 3, maxJumps: 3 };
 const platforms = [
   { x: 0, y: 430, width: 850, height: 150 }, { x: 1000, y: 390, width: 550, height: 190 },
   { x: 1700, y: 430, width: 600, height: 150 }, { x: 2420, y: 350, width: 360, height: 230 },
