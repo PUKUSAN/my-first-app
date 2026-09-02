@@ -25,6 +25,8 @@ kbd { display: inline-block; padding: 4px 7px; border: 1px solid #67729b; border
 .result-panel p { margin: 0 0 20px; color: #b4bcdb; font-size: 13px; }
 button { padding: 11px 20px; border: 0; border-radius: 3px; background: #f2d36b; color: #17182d; font: bold 12px inherit; letter-spacing: .1em; cursor: pointer; }
 button:hover { background: #ffe9a0; }
+#nextStageButton { display: none; }
+#restartButton { display: block; }
 
 @media (max-width: 600px) {
   .hud { padding: 16px; }

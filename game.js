@@ -5,6 +5,7 @@ const resultElement = document.getElementById('result');
 const resultTitle = document.getElementById('resultTitle');
 const resultText = document.getElementById('resultText');
 const restartButton = document.getElementById('restartButton');
+const nextStageButton = document.getElementById('nextStageButton');
 
 const keys = {};
 const worldWidth = 5600;
@@ -15,21 +16,45 @@ let score = 0;
 let lives = 3;
 let gameFinished = false;
 let lastTime = 0;
+let currentStage = 1;
 
 const player = { x: 120, y: 350, width: 28, height: 40, speed: 5, velocityY: 0, onGround: false, jumpsAvailable: 3, maxJumps: 3 };
-const platforms = [
-  { x: 0, y: 430, width: 850, height: 150 }, { x: 1000, y: 390, width: 550, height: 190 },
-  { x: 1700, y: 430, width: 600, height: 150 }, { x: 2420, y: 350, width: 360, height: 230 },
-  { x: 2900, y: 430, width: 680, height: 150 }, { x: 3800, y: 380, width: 420, height: 200 },
-  { x: 4450, y: 430, width: 650, height: 150 }, { x: 5250, y: 350, width: 350, height: 230 },
-  { x: 520, y: 315, width: 170, height: 20 }, { x: 1160, y: 275, width: 170, height: 20 },
-  { x: 1900, y: 330, width: 160, height: 20 }, { x: 3050, y: 320, width: 180, height: 20 },
-  { x: 3900, y: 250, width: 170, height: 20 }, { x: 4630, y: 330, width: 180, height: 20 }
-];
-const coins = [[350, 375], [570, 270], [1210, 230], [1950, 285], [3120, 275], [3980, 205], [4700, 285], [5380, 300], [5500, 300]]
-  .map(([x, y]) => ({ x, y, collected: false }));
-const enemies = [[700, 400], [1300, 350], [2050, 400], [2700, 320], [3300, 400], [4050, 350], [4800, 400], [5400, 310]]
-  .map(([x, y]) => ({ x, y, width: 30, height: 30, startX: x, direction: 1, defeated: false }));
+
+const stageData = {
+  1: {
+    platforms: [
+      { x: 0, y: 430, width: 850, height: 150 }, { x: 1000, y: 390, width: 550, height: 190 },
+      { x: 1700, y: 430, width: 600, height: 150 }, { x: 2420, y: 350, width: 360, height: 230 },
+      { x: 2900, y: 430, width: 680, height: 150 }, { x: 3800, y: 380, width: 420, height: 200 },
+      { x: 4450, y: 430, width: 650, height: 150 }, { x: 5250, y: 350, width: 350, height: 230 },
+      { x: 520, y: 315, width: 170, height: 20 }, { x: 1160, y: 275, width: 170, height: 20 },
+      { x: 1900, y: 330, width: 160, height: 20 }, { x: 3050, y: 320, width: 180, height: 20 },
+      { x: 3900, y: 250, width: 170, height: 20 }, { x: 4630, y: 330, width: 180, height: 20 }
+    ],
+    coins: [[350, 375], [570, 270], [1210, 230], [1950, 285], [3120, 275], [3980, 205], [4700, 285], [5380, 300], [5500, 300]],
+    enemies: [[700, 400], [1300, 350], [2050, 400], [2700, 320], [3300, 400], [4050, 350], [4800, 400], [5400, 310]]
+  },
+  2: {
+    platforms: [
+      { x: 0, y: 430, width: 950, height: 150 }, { x: 1100, y: 350, width: 400, height: 230 },
+      { x: 1650, y: 380, width: 550, height: 200 }, { x: 2350, y: 320, width: 280, height: 260 },
+      { x: 2800, y: 380, width: 620, height: 200 }, { x: 3650, y: 430, width: 500, height: 150 },
+      { x: 4300, y: 350, width: 380, height: 230 }, { x: 5050, y: 380, width: 550, height: 200 },
+      { x: 480, y: 350, width: 150, height: 20 }, { x: 1280, y: 280, width: 160, height: 20 },
+      { x: 1950, y: 310, width: 170, height: 20 }, { x: 2850, y: 270, width: 180, height: 20 },
+      { x: 3800, y: 360, width: 150, height: 20 }, { x: 4680, y: 280, width: 170, height: 20 }
+    ],
+    coins: [[250, 375], [620, 300], [1350, 230], [1800, 265], [2600, 270], [3200, 360], [4050, 300], [4900, 330], [5400, 330]],
+    enemies: [
+      [350, 400, 50, 650], [1250, 320, 1150, 1500], [1850, 350, 1700, 2200], [2500, 290, 2400, 2630],
+      [3100, 350, 2850, 3420], [3900, 400, 3670, 4150], [4450, 320, 4350, 4680], [5250, 350, 5150, 5600]
+    ]
+  }
+};
+
+let platforms = [];
+let coins = [];
+let enemies = [];
 const goal = { x: 5485, y: 270, width: 75, height: 160 };
 const explosions = [];
 
@@ -42,13 +67,29 @@ function resizeCanvas() {
   context.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
 }
 
+function loadStage(stageNum) {
+  const stage = stageData[stageNum];
+  platforms = JSON.parse(JSON.stringify(stage.platforms));
+  coins = stage.coins.map(([x, y]) => ({ x, y, collected: false }));
+  enemies = stage.enemies.map(data => {
+    const [x, y, minX, maxX] = data;
+    return { 
+      x, y, width: 30, height: 30, startX: x, direction: 1, defeated: false,
+      minX: minX !== undefined ? minX : x - 90,
+      maxX: maxX !== undefined ? maxX : x + 90
+    };
+  });
+  currentStage = stageNum;
+}
+
 function resetGame() {
+  loadStage(1);
   player.x = 120; player.y = 350; player.velocityY = 0; player.jumpsAvailable = player.maxJumps; cameraX = 0;
   score = 0; lives = 3; gameFinished = false;
-  coins.forEach(coin => coin.collected = false);
-  enemies.forEach(enemy => { enemy.defeated = false; enemy.x = enemy.startX; });
   explosions.length = 0;
   resultElement.classList.remove('visible');
+  nextStageButton.style.display = 'none';
+  restartButton.style.display = 'block';
   updateScore();
 }
 
@@ -73,6 +114,14 @@ function finishGameWithStageClear() {
   resultTitle.textContent = 'STAGE CLEAR!';
   resultText.textContent = '月明かりの向こうへ到達しました。';
   resultElement.classList.add('visible');
+  
+  if (currentStage === 1) {
+    nextStageButton.style.display = 'block';
+    restartButton.style.display = 'none';
+  } else {
+    nextStageButton.style.display = 'none';
+    restartButton.style.display = 'block';
+  }
 }
 
 function update(delta) {
@@ -103,7 +152,8 @@ function update(delta) {
   enemies.forEach(enemy => {
     if (enemy.defeated) return;
     enemy.x += enemy.direction * 1.1;
-    if (Math.abs(enemy.x - enemy.startX) > 90) enemy.direction *= -1;
+    if (enemy.x < enemy.minX || enemy.x > enemy.maxX) enemy.direction *= -1;
+    enemy.x = Math.max(enemy.minX, Math.min(enemy.maxX, enemy.x));
     if (overlaps(player, enemy)) {
       const playerCenterY = player.y + player.height / 2;
       const enemyCenterY = enemy.y + enemy.height / 2;
@@ -122,7 +172,6 @@ function update(delta) {
       }
     }
   });
-  if (player.x > 5480) finishGame(true);
   
   if (overlaps(player, goal)) {
     finishGameWithStageClear();
@@ -183,4 +232,12 @@ window.addEventListener('resize', resizeCanvas);
 window.addEventListener('keydown', event => { keys[event.key] = true; if (['ArrowLeft', 'ArrowRight', ' '].includes(event.key)) event.preventDefault(); });
 window.addEventListener('keyup', event => { keys[event.key] = false; });
 restartButton.addEventListener('click', resetGame);
+nextStageButton.addEventListener('click', () => {
+  loadStage(2);
+  player.x = 120; player.y = 350; player.velocityY = 0; player.jumpsAvailable = player.maxJumps; cameraX = 0;
+  lives = 3; gameFinished = false;
+  explosions.length = 0;
+  resultElement.classList.remove('visible');
+  nextStageButton.style.display = 'none';
+});
 resizeCanvas(); resetGame(); requestAnimationFrame(gameLoop);
