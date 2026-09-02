@@ -30,6 +30,7 @@ const coins = [[350, 375], [570, 270], [1210, 230], [1950, 285], [3120, 275], [3
   .map(([x, y]) => ({ x, y, collected: false }));
 const enemies = [[700, 400], [1300, 350], [2050, 400], [2700, 320], [3300, 400], [4050, 350], [4800, 400], [5400, 310]]
   .map(([x, y]) => ({ x, y, width: 30, height: 30, startX: x, direction: 1, defeated: false }));
+const goal = { x: 5485, y: 270, width: 75, height: 160 };
 const explosions = [];
 
 function resizeCanvas() {
@@ -64,6 +65,13 @@ function finishGame(won) {
   gameFinished = true;
   resultTitle.textContent = won ? 'RUN COMPLETE' : 'GAME OVER';
   resultText.textContent = won ? '月明かりの向こうへ到達しました。' : '夜が明ける前に、もう一度走ろう。';
+  resultElement.classList.add('visible');
+}
+
+function finishGameWithStageClear() {
+  gameFinished = true;
+  resultTitle.textContent = 'STAGE CLEAR!';
+  resultText.textContent = '月明かりの向こうへ到達しました。';
   resultElement.classList.add('visible');
 }
 
@@ -115,6 +123,10 @@ function update(delta) {
     }
   });
   if (player.x > 5480) finishGame(true);
+  
+  if (overlaps(player, goal)) {
+    finishGameWithStageClear();
+  }
   
   explosions.forEach((explosion, index) => {
     explosion.lifetime -= delta;
