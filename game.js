@@ -17,8 +17,9 @@ let lives = 3;
 let gameFinished = false;
 let lastTime = 0;
 let currentStage = 1;
+let restartFromStageOne = false;
 
-const player = { x: 120, y: 350, width: 28, height: 40, speed: 5, velocityY: 0, onGround: false, jumpsAvailable: 3, maxJumps: 3 };
+const player = { x: 120, y: 350, width: 28, height: 40, speed: 5, velocityY: 0, onGround: false, platform: null, jumpsAvailable: 3, maxJumps: 3 };
 
 const stageData = {
   1: {
@@ -49,6 +50,28 @@ const stageData = {
       [350, 400, 50, 650], [1250, 320, 1150, 1500], [1850, 350, 1700, 2200], [2500, 290, 2400, 2630],
       [3100, 350, 2850, 3420], [3900, 400, 3670, 4150], [4450, 320, 4350, 4680], [5250, 350, 5150, 5600]
     ]
+  },
+  3: {
+    platforms: [
+      { x: 0, y: 430, width: 700, height: 150 }, { x: 850, y: 350, width: 400, height: 230 },
+      { x: 1400, y: 430, width: 500, height: 150 }, { x: 2050, y: 300, width: 400, height: 280 },
+      { x: 2600, y: 390, width: 550, height: 190 }, { x: 3300, y: 280, width: 400, height: 300 },
+      { x: 3850, y: 420, width: 450, height: 160 }, { x: 4450, y: 330, width: 350, height: 250 },
+      { x: 4950, y: 390, width: 650, height: 190 },
+      { x: 380, y: 330, width: 150, height: 20 }, { x: 980, y: 265, width: 160, height: 20 },
+      { x: 1550, y: 350, width: 170, height: 20 }, { x: 2180, y: 220, width: 170, height: 20 },
+      { x: 2750, y: 315, width: 180, height: 20 }, { x: 3420, y: 200, width: 170, height: 20 },
+      { x: 4570, y: 250, width: 170, height: 20 },
+      { x: 690, y: 360, width: 120, height: 20, movement: 'horizontal', min: 690, max: 820, speed: 1.5 },
+      { x: 1900, y: 350, width: 130, height: 20, movement: 'vertical', min: 240, max: 370, speed: 1.2 },
+      { x: 3150, y: 330, width: 130, height: 20, movement: 'horizontal', min: 3130, max: 3280, speed: 1.4 },
+      { x: 4300, y: 300, width: 130, height: 20, movement: 'vertical', min: 230, max: 390, speed: 1.1 }
+    ],
+    coins: [[260, 375], [440, 295], [760, 325], [1030, 210], [1580, 310], [2240, 165], [2800, 275], [3470, 145], [4050, 365], [4630, 215], [5250, 335], [5500, 335]],
+    enemies: [
+      [500, 400, 300, 650], [1030, 320, 880, 1220], [1600, 400, 1450, 1850], [2200, 260, 2070, 2420],
+      [2800, 350, 2650, 3050], [3450, 240, 3320, 3680], [4050, 390, 3900, 4250], [4620, 300, 4500, 4750], [5250, 360, 5050, 5550]
+    ]
   }
 };
 
@@ -69,7 +92,7 @@ function resizeCanvas() {
 
 function loadStage(stageNum) {
   const stage = stageData[stageNum];
-  platforms = JSON.parse(JSON.stringify(stage.platforms));
+  platforms = stage.platforms.map(platform => ({ ...platform }));
   coins = stage.coins.map(([x, y]) => ({ x, y, collected: false }));
   enemies = stage.enemies.map(data => {
     const [x, y, minX, maxX] = data;
@@ -82,10 +105,11 @@ function loadStage(stageNum) {
   currentStage = stageNum;
 }
 
-function resetGame() {
-  loadStage(1);
-  player.x = 120; player.y = 350; player.velocityY = 0; player.jumpsAvailable = player.maxJumps; cameraX = 0;
+function resetGame(stageNum = currentStage) {
+  loadStage(stageNum);
+  player.x = 120; player.y = 350; player.velocityY = 0; player.onGround = false; player.platform = null; player.jumpsAvailable = player.maxJumps; cameraX = 0;
   score = 0; lives = 3; gameFinished = false;
+  restartFromStageOne = false;
   explosions.length = 0;
   resultElement.classList.remove('visible');
   nextStageButton.style.display = 'none';
@@ -104,18 +128,23 @@ function loseLife() {
 
 function finishGame(won) {
   gameFinished = true;
+  restartFromStageOne = false;
   resultTitle.textContent = won ? 'RUN COMPLETE' : 'GAME OVER';
   resultText.textContent = won ? '月明かりの向こうへ到達しました。' : '夜が明ける前に、もう一度走ろう。';
+  nextStageButton.style.display = 'none';
+  restartButton.style.display = 'block';
   resultElement.classList.add('visible');
 }
 
 function finishGameWithStageClear() {
   gameFinished = true;
+  restartFromStageOne = currentStage === 3;
   resultTitle.textContent = 'STAGE CLEAR!';
   resultText.textContent = '月明かりの向こうへ到達しました。';
   resultElement.classList.add('visible');
   
-  if (currentStage === 1) {
+  if (currentStage < 3) {
+    nextStageButton.textContent = `STAGE${currentStage + 1}へ`;
     nextStageButton.style.display = 'block';
     restartButton.style.display = 'none';
   } else {
@@ -130,15 +159,46 @@ function update(delta) {
   const movingRight = keys.ArrowRight;
   if (movingLeft) player.x -= player.speed;
   if (movingRight) player.x += player.speed;
-  if (keys[' '] && player.jumpsAvailable > 0) { player.velocityY = -12; player.jumpsAvailable--; keys[' '] = false; }
+  if (keys[' '] && player.jumpsAvailable > 0) { player.velocityY = -12; player.jumpsAvailable--; player.onGround = false; player.platform = null; keys[' '] = false; }
+
+  const standingPlatform = player.onGround && player.platform && platforms.includes(player.platform) &&
+    player.x + player.width > player.platform.x && player.x < player.platform.x + player.platform.width
+    ? player.platform : null;
+  let carriedByPlatform = false;
+  const previousStandingPlatform = standingPlatform;
+  platforms.forEach(platform => {
+    platform.previousX = platform.x;
+    platform.previousY = platform.y;
+    if (!platform.movement) return;
+    const direction = platform.direction || 1;
+    if (platform.movement === 'horizontal') platform.x += direction * platform.speed;
+    if (platform.movement === 'vertical') platform.y += direction * platform.speed;
+    const position = platform.movement === 'horizontal' ? platform.x : platform.y;
+    if (position < platform.min || position > platform.max) {
+      platform.direction = -direction;
+      if (platform.movement === 'horizontal') platform.x = Math.max(platform.min, Math.min(platform.max, platform.x));
+      else platform.y = Math.max(platform.min, Math.min(platform.max, platform.y));
+    }
+  });
+
+  if (previousStandingPlatform) {
+    player.x += previousStandingPlatform.x - previousStandingPlatform.previousX;
+    player.y = previousStandingPlatform.y - player.height;
+    player.velocityY = 0;
+    player.onGround = true;
+    player.platform = previousStandingPlatform;
+    carriedByPlatform = true;
+  }
 
   player.velocityY += 0.55;
   player.y += player.velocityY;
   player.onGround = false;
   platforms.forEach(platform => {
     const landing = player.velocityY >= 0 && player.x + player.width > platform.x && player.x < platform.x + platform.width;
-    if (landing && player.y + player.height >= platform.y && player.y + player.height - player.velocityY <= platform.y) {
-      player.y = platform.y - player.height; player.velocityY = 0; player.onGround = true; player.jumpsAvailable = player.maxJumps;
+    const previousPlayerBottom = player.y + player.height - player.velocityY;
+    const carried = carriedByPlatform && platform === previousStandingPlatform;
+    if (carried || (landing && player.y + player.height >= platform.y && previousPlayerBottom <= platform.previousY)) {
+      player.y = platform.y - player.height; player.velocityY = 0; player.onGround = true; player.platform = platform; player.jumpsAvailable = player.maxJumps;
     }
   });
   player.x = Math.max(0, Math.min(worldWidth - player.width, player.x));
@@ -231,10 +291,10 @@ function gameLoop(time) { const delta = Math.min((time - lastTime) / 1000, 0.04)
 window.addEventListener('resize', resizeCanvas);
 window.addEventListener('keydown', event => { keys[event.key] = true; if (['ArrowLeft', 'ArrowRight', ' '].includes(event.key)) event.preventDefault(); });
 window.addEventListener('keyup', event => { keys[event.key] = false; });
-restartButton.addEventListener('click', resetGame);
+restartButton.addEventListener('click', () => resetGame(restartFromStageOne ? 1 : currentStage));
 nextStageButton.addEventListener('click', () => {
-  loadStage(2);
-  player.x = 120; player.y = 350; player.velocityY = 0; player.jumpsAvailable = player.maxJumps; cameraX = 0;
+  loadStage(currentStage + 1);
+  player.x = 120; player.y = 350; player.velocityY = 0; player.onGround = false; player.platform = null; player.jumpsAvailable = player.maxJumps; cameraX = 0;
   lives = 3; gameFinished = false;
   explosions.length = 0;
   resultElement.classList.remove('visible');
